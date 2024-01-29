@@ -1,0 +1,154 @@
+openapi: 3.0.1
+info:
+  title: Powered by uKnomi - 3PC
+  description:
+    Powered by uknomi (PoU) API. You can find out more about uKnomi at (test)
+    [http://www.uknomi.com](http://www.uknomi.com).
+  termsOfService: http://www.uknomi.com/pou/terms/
+  contact:
+    email: pou@uknomi.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.2
+
+servers:
+- url: https://kuaelavael.execute-api.af-south-1.amazonaws.com/dev
+  description: Dev
+- url: https://p6u7siob5b.execute-api.us-east-1.amazonaws.com/qa
+  description: QA
+
+security:
+  - authorizer: []
+  - NONE: []
+
+paths:
+  /order:
+    post:
+      description: "Endpoint for receiving orders in real time from third parties"
+      responses:
+        200:
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealTimeOrderHandler.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        contentHandling: "CONVERT_TO_TEXT"
+      security:
+        - NONE: []
+    options:
+      summary: CORS Support
+      description: |
+        Enable CORS by returning correct headers
+      tags:
+        - CORS
+      responses:
+        200:
+          description: Default response for CORS method
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'GET'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+
+  /oauthClientAppRedirect:
+    get:
+      description: "Endpoint for receiving third party client auth codes"
+      responses:
+        200:
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OauthClientAuthCode"
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SaveOauthClientAuthCode.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        contentHandling: "CONVERT_TO_TEXT"
+      security:
+        - NONE: []
+    options:
+      summary: CORS Support
+      description: |
+        Enable CORS by returning correct headers
+      tags:
+        - CORS
+      responses:
+        200:
+          description: Default response for CORS method
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'GET'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+  # -----------------------------------------------------------------------------------
+
+components:
+  # SECURITY 
+  # --------------------------- 
+  securitySchemes:
+    authorizer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  # --------------------------- 
+  schemas:
+    Order:
+      type: object
+    OauthClientAuthCode:
+      type: object

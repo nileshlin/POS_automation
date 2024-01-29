@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  uknomi-connectors-sam
+
+  Powered by Uknomi | Uknomi Third Party Connectors
+
+Parameters:
+  StageName:
+    Type: String
+    Default: NONE
+  Region:
+    Type: String
+    Default: NONE
+  APIName:
+    Type: String
+    Default: NONE
+  S3Bucket:
+    Type: String
+    Default: NONE
+  APIType:
+    Type: String
+    Default: REGIONAL
+
+Globals:
+  Function:
+    Timeout: 500
+    Environment:
+      Variables:
+        REGION: !Ref Region
+        API_NAME: !Ref APIName
+        STAGE_NAME: !Ref StageName
+        S3_BUCKET: !Ref S3Bucket
+
+Resources:
+  UknomiApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Ref APIName
+      StageName: !Ref StageName
+      EndpointConfiguration:
+        Type: !Ref APIType
+      DefinitionBody:
+        "Fn::Transform":
+          Name: "AWS::Include"
+          Parameters:
+            Location: ./api.yaml
+      Cors: "'*'"
+      Auth:
+        ResourcePolicy:
+          CustomStatements:
+            {
+              Effect: "Allow",
+              Action: "execute-api:Invoke",
+              Resource: ["execute-api:/*/*/*"],
+              Principal: "*",
+            }
+
+  OrderUploadQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: OrderUploadQueue.fifo
+      FifoQueue: true
+      VisibilityTimeout: 60
+      ContentBasedDeduplication: true
+
+  OrderReformer:
+    Type: AWS::Serverless::Function
+    Properties:
+      MemorySize: 512
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonS3FullAccess
+        - AmazonSNSFullAccess
+        - AmazonSQSFullAccess
+      CodeUri: order_reformer_function/
+      Handler: batch_order.lambda_handler
+      Runtime: python3.9
+
+  OrderMatchingStarter:
+    Type: AWS::Serverless::Function
+    Properties:
+      MemorySize: 512
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonS3FullAccess
+        - AmazonSNSFullAccess
+        - AmazonSQSFullAccess
+      CodeUri: order_reformer_function/
+      Handler: customer_matching.lambda_handler
+      Runtime: python3.9
+
+  MenuReformer:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 600
+      MemorySize: 512
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonS3FullAccess
+      CodeUri: menu_reformer/
+      Handler: batch_menu.lambda_handler
+      Runtime: python3.9
+
+  RealTimeOrderHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonS3FullAccess
+        - AmazonSQSFullAccess
+      CodeUri: order_reformer_function/
+      Handler: realtime_order.lambda_handler
+      Runtime: python3.9
+      Events:
+        RealTimeOrderHandlerApiGateway:
+          Type: Api
+          Properties:
+            RestApiId: !Ref UknomiApiGateway
+            Path: /order
+            Method: POST
+            Auth:
+              Authorizer: "NONE"
+
+  BatchOrderUploader:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonS3FullAccess
+        - AmazonSQSFullAccess
+      CodeUri: order_reformer_function/
+      Handler: batch_order_uploader.lambda_handler
+      Runtime: python3.9
+      Timeout: 60
+      Events:
+        MySQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt OrderUploadQueue.Arn
+            BatchSize: 1
+
+  SaveOauthClientAuthCode:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonS3FullAccess
+      CodeUri: order_reformer_function/
+      Handler: client_app_redirect.lambda_handler_function
+      Runtime: python3.9
+      Events:
+        SaveClientAuthCodeApiGateway:
+          Type: Api
+          Properties:
+            RestApiId: !Ref UknomiApiGateway
+            Path: /oauthClientAppRedirect
+            Method: GET
+            Auth:
+              Authorizer: "NONE"
+  
+  MatchOrdersToCustomersSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Description: Schedule for invoking Customer Order Matching
+      FlexibleTimeWindow:
+        MaximumWindowInMinutes: 60
+        Mode: "FLEXIBLE"
+      ScheduleExpression: "cron(0 22 * * ? *)"
+      State: "ENABLED"
+      Target:
+        Arn: !GetAtt OrderMatchingStarter.Arn
+        RoleArn: !GetAtt TPCScheduleRole.Arn
+
+  TPCScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: TPCScheduleRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource:
+                  - !GetAtt OrderMatchingStarter.Arn

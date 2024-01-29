@@ -1,0 +1,41 @@
+version = 0.1
+
+[dev.deploy.parameters]
+stack_name = "sam-dev-app-clover"
+s3_bucket = "uknomi-dev-connectors-sam-deployment-bucket"
+s3_prefix = "sam-dev-app-clover"
+region = "af-south-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "APIType=\"PRIVATE\" APIName=\"Powered by uKnomi 3PC Dev Private\" StageName=\"dev\" Region=\"af-south-1\" S3Bucket=\"uknomi-dev-connectors-last-run-time\""
+image_repositories = []
+
+[qa.deploy.parameters]
+stack_name = "sam-qa-app-clover"
+s3_bucket = "uknomi-qa-connectors-sam-deployment-bucket"
+s3_prefix = "sam-qa-app-clover"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "APIType=\"PRIVATE\" APIName=\"Powered by uKnomi 3PC QA Private\" StageName=\"qa\" Region=\"us-east-1\" S3Bucket=\"uknomi-qa-connectors-last-run-time\""
+image_repositories = []
+
+[preprod.deploy.parameters]
+stack_name = "sam-preprod-app-clover"
+s3_bucket = "uknomi-preprod-connectors-sam-deployment-bucket-1"
+s3_prefix = "sam-preprod-app-clover"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "APIType=\"PRIVATE\" APIName=\"Powered by uKnomi 3PC PRE-PROD Private\" StageName=\"preprod\" Region=\"us-east-1\" S3Bucket=\"uknomi-preprod-connectors-last-run-time\""
+image_repositories = []
+
+[prod.deploy.parameters]
+stack_name = "sam-prod-app-clover"
+s3_bucket = "uknomi-prod-connectors-sam-deployment-bucket-1"
+s3_prefix = "sam-prod-app-clover"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "APIType=\"PRIVATE\" APIName=\"Powered by uKnomi 3PC PROD Private\" StageName=\"prod\" Region=\"us-east-1\" S3Bucket=\"uknomi-prod-connectors-last-run-time\""
+image_repositories = []
